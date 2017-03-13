@@ -5,8 +5,8 @@ Docs and config files of OpenStack-manual-deploy
 # 目录
 <!-- toc -->
 * [环境](#环境)
-  * [架构](#架构)
-  * [网络](#网络)
+  * [架构](#架构)
+  * [网络](#网络)
 
 <!-- toc stop -->
 # 环境
@@ -60,3 +60,6 @@ Docs and config files of OpenStack-manual-deploy
 | NEUTRON_DBPASS      | Database password for the Networking service |
 | NEUTRON_PASS      | Password of Networking service user neutron |
 | DASH_DBPASS      | Database password for the dashboard |
+
+# 1.网络配置
+控制节点
