@@ -36,4 +36,20 @@ Docs and config files of OpenStack-manual-deploy
 
 ############################################################################################
 ```
+## 安全
+下面是各个需要密码的服务以及解释，可以采用同一个，也可以按照下表设置密码。
 
+| Password      | Description           |
+| ------------- |:---------------------:|
+| Database Password      | Root password for the database（can share the same pwd with linux user） |
+| ADMIN_PASS      | Password of user admin |
+| DEMO_PASS       | Password of user demo  |
+| RABBIT_PASS       | Password of user guest of RabbitMQ  |
+| KEYSTONE_DBPASS      | Database password of Identity service |
+| GLANCE_DBPASS      | Database password for Image service |
+| GLANCE_PASS      | Password of Image service user glance |
+| NOVA_DBPASS      | Database password for Compute service |
+| NOVA_PASS      | Password of Compute service user nova |
+| NEUTRON_DBPASS      | Database password for the Networking service |
+| NEUTRON_PASS      | Password of Networking service user neutron |
+| DASH_DBPASS      | Database password for the dashboard |
