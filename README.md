@@ -62,4 +62,59 @@ Docs and config files of OpenStack-manual-deploy
 | DASH_DBPASS      | Database password for the dashboard |
 
 # 1.网络配置
-控制节点
+## 控制节点
+
+/etc/network/interfaces 网卡1 eno2 设置为静态IP，网卡2 eno3 如下设置
+```shell
+# This file describes the network interfaces available on your system
+# and how to activate them. For more information, see interfaces(5).
+
+source /etc/network/interfaces.d/*
+
+# The loopback network interface
+auto lo
+iface lo inet loopback
+
+# The primary network interface
+auto eno2
+iface eno2 inet static
+address 10.109.252.247
+netmask 255.255.255.0
+gateway 10.109.252.1
+dns_nameservers 10.3.9.4 10.3.9.5
+
+# The provider network interface
+auto eno3
+iface eno3 inet manual
+up ip link set dev $IFACE up
+down ip link set dev $IFACE down
+dns_nameservers 10.3.9.4 10.3.9.5
+```
+/etc/hosts 配置地址解析，需注释掉 127.0.1.1 这一行
+```shell
+127.0.0.1       localhost
+# 127.0.1.1     controller
+
+# controller
+10.109.252.247    controller
+
+#compute1
+10.109.252.248    compute1
+```
+注意！需要禁掉网卡2 eno3 的 ipv6，否则在创建网络时会一直处于创建过程中，无法成功！（尽管ipv6被禁，但是 provider 网络架构下实例仍然具备 ipv6 访问能力）通过修改 /etc/sysctl.conf 文件实现对 /proc 进行永久修改。
+```shell
+net.ipv6.conf.eno3.disable_ipv6 = 1
+```
+执行以下命令使修改立即生效。
+```shell
+sudo sysctl -p /etc/sysctl.conf 
+```
+## 计算节点
+同样需要配置网卡、地址解析、禁用第二张网卡的 ipv6，参考控制节点。
+## 验证
+控制节点与计算节点的互通性，在控制节点与计算节点执行
+```shell
+ping -c 4 compute1
+ping -c 4 controller
+```
+# 2.NTP
