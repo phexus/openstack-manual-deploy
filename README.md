@@ -2,6 +2,13 @@
 Docs and config files of OpenStack-manual-deploy
 # 说明
 本文参考 https://docs.openstack.org/newton/install-guide-ubuntu/ 官方文档手动安装 Newton 版本（Ocata 版本有不可抗拒的 bug，暂不更新），用于日常实验环境的搭建，并对部分步骤给出比必要的解释，相关的配置文件可在对应的目录中找到，用以备忘。
+# 目录
+<!-- toc -->
+* [环境](#环境)
+  * [架构](#架构)
+  * [网络](#网络)
+
+<!-- toc stop -->
 # 环境
 ## 架构
 根据官方文档，本文架构采用一个控制节点和一个计算节点。
