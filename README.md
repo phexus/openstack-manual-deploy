@@ -117,4 +117,55 @@ sudo sysctl -p /etc/sysctl.conf
 ping -c 4 compute1
 ping -c 4 controller
 ```
-# 2.NTP
+# 2.NTP 网络时间协议
+## 控制节点
+安装包
+```shell
+# apt install chrony
+```
+编辑  /etc/chrony.conf 文件，这里可以根据需要将NTP_SERVER替换为合适的NTP服务器，在本架构中不包含NTP服务器，所以不用添加这一行。
+```shell
+server NTP_SERVER iburst
+```
+允许计算节点同步。（计算节点IP网段属于10.109.252.0）
+```shell
+allow 10.109.252.0/24
+```
+重启 NTP 服务
+```shell
+# service chrony restart
+```
+## 其他节点
+```shell
+# apt install chrony
+# vim /etc/chrony.conf
+```
+编辑  /etc/chrony.conf 文件，确保从 controller 节点同步时间
+```shell
+server controller iburst
+```
+注释掉 `pool 2.debian.pool.ntp.org offline iburst` 这一行
+```shell
+# service chrony restart
+```
+## 验证
+在控制节点上同步时间
+```shell
+# chronyc sources
+
+  210 Number of sources = 2
+  MS Name/IP address         Stratum Poll Reach LastRx Last sample
+  ===============================================================================
+  ^- 192.0.2.11                    2   7    12   137  -2814us[-3000us] +/-   43ms
+  ^* 192.0.2.12                    2   6   177    46    +17us[  -23us] +/-   68ms
+```
+在其余节点上同步时间
+```shell
+# chronyc sources
+
+  210 Number of sources = 1
+  MS Name/IP address         Stratum Poll Reach LastRx Last sample
+  ===============================================================================
+  ^* controller                    3    9   377   421    +15us[  -87us] +/-   15ms
+```
+带星号的是NTP当前同步的地址。确保其他节点输出结果同步的是controller
