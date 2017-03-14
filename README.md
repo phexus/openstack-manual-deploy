@@ -148,6 +148,7 @@ server controller iburst
 ```shell
 # service chrony restart
 ```
+具体文件可直接复制本repo内的，适当修改 allow
 ## 验证
 在控制节点上同步时间
 ```shell
@@ -169,3 +170,200 @@ server controller iburst
   ^* controller                    3    9   377   421    +15us[  -87us] +/-   15ms
 ```
 带星号的是NTP当前同步的地址。确保其他节点输出结果同步的是controller
+# 3. 安装 OpenStack 包
+## 所有节点
+```shell
+# apt install software-properties-common
+# add-apt-repository cloud-archive:newton
+# apt update && apt dist-upgrade    //若有更新注意重启机器激活
+# apt install python-openstackclient
+```
+# 4. 数据库
+## 控制节点
+```shell
+# apt install mariadb-server python-pymysql
+# vim /etc/mysql/mariadb.conf.d/99-openstack.cnf
+```
+添加内容，bind-address 替换为控制节点第一张网卡的 ip 地址，此时为10.109.252.247
+```shell
+[mysqld]
+bind-address = 10.109.252.247
+
+default-storage-engine = innodb
+innodb_file_per_table
+max_connections = 4096
+collation-server = utf8_general_ci
+character-set-server = utf8
+```
+重启服务，并为数据库 root 用户设置密码，删除 anonymous 用户，关闭 root 远程访问
+```shell
+# service mysql restart
+# mysql_secure_installation
+```
+# 5. Message queue 消息队列
+## 控制节点
+```shell
+# apt install rabbitmq-server
+# rabbitmqctl add_user openstack RABBIT_PASS
+# rabbitmqctl set_permissions openstack ".*" ".*" ".*"
+```
+# 6. Memcached 缓存令牌
+## 控制节点
+```shell
+# apt install memcached python-memcache
+# vim /etc/memcached.conf
+```
+编辑 /etc/sysconfig/memcached文件并配置IP地址，将127.0.0.1改为控制节点IP。
+```shell
+#-l 127.0.0.1
+-l 10.109.252.247
+```
+```shell
+# service memcached restart
+```
+# 7. Identity service 认证服务
+## 控制节点
+```shell
+# mysql
+MariaDB[(none)]> CREATE DATABASE keystone;
+MariaDB [(none)]> GRANT ALL PRIVILEGESON keystone.* TO 'keystone'@'localhost' IDENTIFIED BY 'KEYSTONE_DBPASS';
+MariaDB [(none)]> GRANT ALL PRIVILEGESON keystone.* TO 'keystone'@'%' IDENTIFIED BY 'KEYSTONE_DBPASS';
+```
+```shell
+# apt install keystone
+# vim /etc/keystone/keystone.conf
+```
+添加内容
+```shell
+[database]
+...
+connection = mysql+pymysql://keystone:KEYSTONE_DBPASS@controller/keystone
+...
+[token]
+...
+provider = fernet
+```
+同步认证服务数据库、初始化Fernetkey仓库、引导认证服务
+```shell
+# su -s /bin/sh -c "keystone-manage db_sync" keystone
+# keystone-manage fernet_setup --keystone-user keystone --keystone-group keystone
+# keystone-manage credential_setup --keystone-user keystone --keystone-group keystone
+# keystone-manage bootstrap --bootstrap-password ADMIN_PASS \
+  --bootstrap-admin-url http://controller:35357/v3/ \
+  --bootstrap-internal-url http://controller:35357/v3/ \
+  --bootstrap-public-url http://controller:5000/v3/ \
+  --bootstrap-region-id RegionOne
+```
+配置Apache服务器
+```shell
+# vim /etc/apache2/apache2.conf
+```
+在开头添加
+```shell
+ServerName controller
+```
+完成安装
+```shell
+# service apache2 restart
+# rm -f /var/lib/keystone/keystone.db
+```
+切换到普通用户
+```shell
+$ 
+export OS_USERNAME=admin
+export OS_PASSWORD=ADMIN_PASS
+export OS_PROJECT_NAME=admin
+export OS_USER_DOMAIN_NAME=Default
+export OS_PROJECT_DOMAIN_NAME=Default
+export OS_AUTH_URL=http://controller:35357/v3
+export OS_IDENTITY_API_VERSION=3
+```
+本指南有一个service 项目，你添加的每一个服务都有唯一的用户。普通的任务不应该使用具有特权的项目和用户。作为示例，本指南创建一个demo项目和用户。
+```shell
+$ openstack project create --domain default \
+  --description "Service Project" service
+$ openstack project create --domain default \
+  --description "Demo Project" demo
+$ openstack user create --domain default \
+  --password-prompt demo
+$ openstack role create user
+$ openstack role add --project demo --user demo user
+```
+## 验证
+出于安全性的原因，禁用掉暂时的认证令牌机制。编辑`/etc/keystone/keystone-paste.ini`文件，并从`[pipeline:public_api]`, `[pipeline:admin_api]`, 和`[pipeline:api_v3]`选项中删除`admin_token_auth`
+```shell
+$ unset OS_AUTH_URL OS_PASSWORD
+$ openstack --os-auth-url http://controller:35357/v3 \
+  --os-project-domain-name Default --os-user-domain-name Default \
+  --os-project-name admin --os-username admin token issue
+
+Password:
++------------+-----------------------------------------------------------------+
+| Field      | Value                                                           |
++------------+-----------------------------------------------------------------+
+| expires    | 2016-02-12T20:14:07.056119Z                                     |
+| id         | gAAAAABWvi7_B8kKQD9wdXac8MoZiQldmjEO643d-e_j-XXq9AmIegIbA7UHGPv |
+|            | atnN21qtOMjCFWX7BReJEQnVOAj3nclRQgAYRsfSU_MrsuWb4EDtnjU7HEpoBb4 |
+|            | o6ozsA_NmFWEpLeKy0uNn_WeKbAhYygrsmQGA49dclHVnz-OMVLiyM9ws       |
+| project_id | 343d245e850143a096806dfaefa9afdc                                |
+| user_id    | ac3377633149401296f6c0d92d79dc16                                |
++------------+-----------------------------------------------------------------+
+
+$ openstack --os-auth-url http://controller:5000/v3 \
+  --os-project-domain-name Default --os-user-domain-name Default \
+  --os-project-name demo --os-username demo token issue
+
+Password:
++------------+-----------------------------------------------------------------+
+| Field      | Value                                                           |
++------------+-----------------------------------------------------------------+
+| expires    | 2016-02-12T20:15:39.014479Z                                     |
+| id         | gAAAAABWvi9bsh7vkiby5BpCCnc-JkbGhm9wH3fabS_cY7uabOubesi-Me6IGWW |
+|            | yQqNegDDZ5jw7grI26vvgy1J5nCVwZ_zFRqPiz_qhbq29mgbQLglbkq6FQvzBRQ |
+|            | JcOzq3uwhzNxszJWmzGC7rJE_H0A_a3UFhqv8M4zMRYSbS2YF0MyFmp_U       |
+| project_id | ed0b60bf607743088218b0a533d5943f                                |
+| user_id    | 58126687cbcc4888bfa9ab73a2256f27                                |
++------------+-----------------------------------------------------------------+
+```
+## 创建OpenStack客户端环境脚本
+在前面章节中，我们使用环境变量和命令的组合来配置认证服务，为了更加高效和方便，我们创建一个脚本方便以后的操作。这些脚本包括一些公共的操作，但是也支持自定义的操作。
+
+创建并编辑`admin-openrc`文件，并添加以下内容：
+```shell
+export OS_PROJECT_DOMAIN_NAME=Default
+export OS_USER_DOMAIN_NAME=Default
+export OS_PROJECT_NAME=admin
+export OS_USERNAME=admin
+export OS_PASSWORD=ADMIN_PASS
+export OS_AUTH_URL=http://controller:35357/v3
+export OS_IDENTITY_API_VERSION=3
+export OS_IMAGE_API_VERSION=2
+```
+
+创建并编辑`demo-openrc`文件，并添加以下内容：
+```shell
+export OS_PROJECT_DOMAIN_NAME=Default
+export OS_USER_DOMAIN_NAME=Default
+export OS_PROJECT_NAME=demo
+export OS_USERNAME=demo
+export OS_PASSWORD=DEMO_PASS
+export OS_AUTH_URL=http://controller:5000/v3
+export OS_IDENTITY_API_VERSION=3
+export OS_IMAGE_API_VERSION=2
+```
+使用脚本:加载脚本文件更新环境变量，并请求一个认证令牌；
+```shell
+$ . admin-openrc
+$ openstack token issue
+
++------------+-----------------------------------------------------------------+
+| Field      | Value                                                           |
++------------+-----------------------------------------------------------------+
+| expires    | 2016-02-12T20:44:35.659723Z                                     |
+| id         | gAAAAABWvjYj-Zjfg8WXFaQnUd1DMYTBVrKw4h3fIagi5NoEmh21U72SrRv2trl |
+|            | JWFYhLi2_uPR31Igf6A8mH2Rw9kv_bxNo1jbLNPLGzW_u5FC7InFqx0yYtTwa1e |
+|            | eq2b0f6-18KZyQhs7F3teAta143kJEWuNEYET-y7u29y0be1_64KYkM7E       |
+| project_id | 343d245e850143a096806dfaefa9afdc                                |
+| user_id    | ac3377633149401296f6c0d92d79dc16                                |
++------------+-----------------------------------------------------------------+
+```
