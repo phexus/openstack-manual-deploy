@@ -93,13 +93,24 @@ dns_nameservers 10.3.9.4 10.3.9.5
 /etc/hosts 配置地址解析，需注释掉 127.0.1.1 这一行
 ```shell
 127.0.0.1       localhost
-# 127.0.1.1     controller
+#127.0.1.1      controller
 
 # controller
-10.109.252.247    controller
+10.109.252.247  controller
 
 #compute1
-10.109.252.248    compute1
+10.109.252.248  compute1
+
+#compute2
+10.109.252.241  compute2
+
+#compute3
+10.109.252.242  compute3
+
+# The following lines are desirable for IPv6 capable hosts
+::1     localhost ip6-localhost ip6-loopback
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
 ```
 注意！需要禁掉网卡2 eno3 的 ipv6，否则在创建网络时会一直处于创建过程中，无法成功！（尽管ipv6被禁，但是 provider 网络架构下实例仍然具备 ipv6 访问能力）通过修改 /etc/sysctl.conf 文件实现对 /proc 进行永久修改。
 ```shell
@@ -122,6 +133,7 @@ ping -c 4 controller
 安装包
 ```shell
 # apt install chrony
+# vim /etc/chrony/chrony.conf
 ```
 编辑  /etc/chrony.conf 文件，这里可以根据需要将NTP_SERVER替换为合适的NTP服务器，在本架构中不包含NTP服务器，所以不用添加这一行。
 ```shell
@@ -138,7 +150,7 @@ allow 10.109.252.0/24
 ## 其他节点
 ```shell
 # apt install chrony
-# vim /etc/chrony.conf
+# vim /etc/chrony/chrony.conf
 ```
 编辑  /etc/chrony.conf 文件，确保从 controller 节点同步时间
 ```shell
